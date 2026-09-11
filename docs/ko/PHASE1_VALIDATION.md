@@ -27,9 +27,13 @@ WhisperKit의 한국어 강제 지정(`ko`)이 실제 iPhone에서 안정적으�
 - `TranscriptionLanguagePolicyTests`: 통과
 - `PendingDictationTests`: 통과
 - `TranscriptionHistoryStoreTests`: 통과
-- Xcode 26.6 iOS Simulator 빌드: 앱 코드 이후 FluidAudio 0.12.4의 Swift 6 동시성 검사에서 중단
+- 위 4개 테스트 스위트: 총 73개 테스트 통과
+- Xcode 26.6 iOS Simulator 전체 빌드: 통과
 
-현재 시뮬레이터 빌드 오류는 `StreamingAsrManager.swift`의 기존 `AsrManager` 전송 경고 3건이 Swift 6 오류로 승격된 것이다. 한국어 변경 파일에서는 컴파일 오류가 발견되지 않았다. 의존성 패치나 버전 고정은 Phase 1 STT 변경과 분리해 처리한다.
+FluidAudio 0.12.4의 `StreamingAsrManager.swift`에서 Swift 동시성 오류 3건이
+발생했으나, 수정이 반영된 0.13.4를 정확 버전으로 고정해 해소했다. 한국어
+변경 파일과 FluidAudio를 사용하는 기존 앱 코드가 함께 컴파일되며 메인 앱,
+키보드 익스텐션, 위젯 익스텐션 산출물 생성을 확인했다.
 
 한글 자판, 한국어 자동수정, 개인 사전, UI 전체 번역은 이 단계에 포함하지 않는다.
 

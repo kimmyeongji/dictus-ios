@@ -51,7 +51,7 @@ WhisperKit 모델은 키보드 익스텐션이 아니라 메인 앱 프로세스
 - [x] 한국어 언어 토큰 전달 위치 확인
 - [x] App Group 및 Full Access 설정 위치 확인
 - [x] GitHub 원격 포크 생성 및 첫 push
-- [ ] iOS Simulator 기준 전체 앱 빌드
+- [x] iOS Simulator 기준 전체 앱 빌드
 - [ ] 개발자 서명과 독립 Bundle ID/App Group 확정
 - [ ] 실제 iPhone 설치 및 원본 동작 확인
 
@@ -62,6 +62,14 @@ gh auth login -h github.com
 gh repo fork getdictus/dictus-ios --remote=false --clone=false
 git push -u origin feature/korean-stt-validation
 ```
+
+Xcode 26.6에서는 FluidAudio 0.12.4의 Swift 동시성 진단이 오류로 승격되어
+시뮬레이터 빌드가 중단된다. FluidAudio의 해당 수정과 WhisperKit 의존성 충돌
+제거가 포함된 0.13.4를 Xcode 프로젝트에 정확 버전으로 고정했다.
+
+- 관련 이슈: <https://github.com/FluidInference/FluidAudio/issues/448>
+- 의존성 충돌 제거 변경: <https://github.com/FluidInference/FluidAudio/pull/449>
+- 확인 결과: `DictusApp.app`, `DictusKeyboard.appex`, `DictusWidgets.appex` 생성
 
 ## Phase 1 변경 원칙
 
