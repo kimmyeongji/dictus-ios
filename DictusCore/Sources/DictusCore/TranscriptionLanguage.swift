@@ -2,6 +2,46 @@
 // Transcription (STT) language mode, decoupled from the keyboard language (issue #226).
 import Foundation
 
+/// Languages that can be pinned for speech-to-text independently from the keyboard.
+///
+/// WHY this is not `SupportedLanguage`:
+/// `SupportedLanguage` also promises a keyboard layout, key labels, autocorrect,
+/// and prediction data. Korean is being validated as a voice-only language first,
+/// so putting it there would claim keyboard features that do not exist yet.
+public enum TranscriptionLanguage: String, CaseIterable, Codable, Sendable {
+    case french = "fr"
+    case english = "en"
+    case spanish = "es"
+    case german = "de"
+    case korean = "ko"
+
+    /// Autonym shown in the transcription language picker.
+    public var displayName: String {
+        switch self {
+        case .french: return "Fran\u{00E7}ais"
+        case .english: return "English"
+        case .spanish: return "Espa\u{00F1}ol"
+        case .german: return "Deutsch"
+        case .korean: return "한국어"
+        }
+    }
+
+    /// The language-specific polish path, when one exists.
+    ///
+    /// Korean intentionally returns nil during Phase 1. The generic same-language
+    /// prompt is safer than routing Korean through a French, English, Spanish, or
+    /// German prompt, and pure STT validation keeps polish disabled altogether.
+    public var polishLanguage: SupportedLanguage? {
+        switch self {
+        case .french: return .french
+        case .english: return .english
+        case .spanish: return .spanish
+        case .german: return .german
+        case .korean: return nil
+        }
+    }
+}
+
 /// The user's transcription language choice, stored in
 /// `SharedKeys.transcriptionLanguage`.
 ///
@@ -12,8 +52,8 @@ import Foundation
 /// no Dictus keyboard layout (Chinese, Italian, Portuguese, …). Adding cases
 /// to `SupportedLanguage` would force a `defaultLayout`/`spaceName`/profile
 /// for every such language and drag the keyboard into a pure STT feature.
-/// Instead, this enum models the three *modes* the STT pipeline understands,
-/// and only the explicit mode references the four tested keyboard languages.
+/// Instead, `TranscriptionLanguage` owns the STT-only catalog while this enum
+/// models the three *modes* the pipeline understands.
 ///
 /// WHY string-encoded modes instead of a raw-representable enum:
 /// The stored value mixes two namespaces — mode markers ("follow"/"auto") and
@@ -29,9 +69,7 @@ public enum TranscriptionLanguageMode: Equatable, Sendable {
     /// Parakeet already auto-detects natively, so this is a no-op change for it.
     case autoDetect
     /// A fixed STT language, independent of the keyboard language.
-    /// Limited to the four tested languages by product decision (#226):
-    /// untested languages are reachable through `.autoDetect` only.
-    case explicit(SupportedLanguage)
+    case explicit(TranscriptionLanguage)
 
     // MARK: - App Group encoding
 
@@ -48,7 +86,7 @@ public enum TranscriptionLanguageMode: Equatable, Sendable {
         case Self.autoStoredValue:
             self = .autoDetect
         case .some(let raw):
-            if let language = SupportedLanguage(rawValue: raw) {
+            if let language = TranscriptionLanguage(rawValue: raw) {
                 self = .explicit(language)
             } else {
                 // Covers "follow" and any unknown/corrupted value.
@@ -285,7 +323,7 @@ public struct TranscriptionLanguagePolicy: Equatable, Sendable, Codable {
     ///
     /// - Parameter detectedLanguage: what `NLLanguageRecognizer` read in the
     ///   raw STT output, or `nil` when it was not confident or landed outside
-    ///   the four supported languages. Injected by the caller rather than
+    ///   the keyboard-supported languages. Injected by the caller rather than
     ///   detected here so this stays a pure, testable function.
     public func polishPromptSelection(
         detectedLanguage: SupportedLanguage?
@@ -294,7 +332,7 @@ public struct TranscriptionLanguagePolicy: Equatable, Sendable, Codable {
         case .autoDetect:
             return .autoDetected
         case .explicit(let language):
-            return .language(language)
+            return language.polishLanguage.map(PolishPromptSelection.language) ?? .autoDetected
         case .followKeyboard:
             // No explicit choice to honour, so detection decides. Only when it
             // has nothing to say does the keyboard language get used — and

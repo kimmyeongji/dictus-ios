@@ -38,6 +38,7 @@ final class TranscriptionLanguageModeTests: XCTestCase {
         XCTAssertEqual(TranscriptionLanguageMode(storedValue: "en"), .explicit(.english))
         XCTAssertEqual(TranscriptionLanguageMode(storedValue: "es"), .explicit(.spanish))
         XCTAssertEqual(TranscriptionLanguageMode(storedValue: "de"), .explicit(.german))
+        XCTAssertEqual(TranscriptionLanguageMode(storedValue: "ko"), .explicit(.korean))
     }
 
     func testUnknownValueDegradesToFollow() {
@@ -54,7 +55,8 @@ final class TranscriptionLanguageModeTests: XCTestCase {
     func testStoredValueRoundTrip() {
         let modes: [TranscriptionLanguageMode] = [
             .followKeyboard, .autoDetect,
-            .explicit(.french), .explicit(.english), .explicit(.spanish), .explicit(.german)
+            .explicit(.french), .explicit(.english), .explicit(.spanish), .explicit(.german),
+            .explicit(.korean)
         ]
         for mode in modes {
             XCTAssertEqual(TranscriptionLanguageMode(storedValue: mode.storedValue), mode)
@@ -82,6 +84,12 @@ final class TranscriptionLanguageModeTests: XCTestCase {
         XCTAssertEqual(mode.resolvedLanguageCode(keyboardLanguageCode: "es"), "en")
     }
 
+    func testKoreanResolvesToWhisperLanguageCode() {
+        let mode = TranscriptionLanguageMode.explicit(.korean)
+        XCTAssertEqual(mode.resolvedLanguageCode(keyboardLanguageCode: "fr"), "ko")
+        XCTAssertEqual(mode.storedValue, "ko")
+    }
+
     // MARK: - Telemetry description (#332)
 
     func testTelemetryDescriptionNamesTheModeNotJustTheLanguage() {
@@ -95,6 +103,8 @@ final class TranscriptionLanguageModeTests: XCTestCase {
                        "explicit(fr)")
         XCTAssertEqual(TranscriptionLanguageMode.explicit(.german).telemetryDescription,
                        "explicit(de)")
+        XCTAssertEqual(TranscriptionLanguageMode.explicit(.korean).telemetryDescription,
+                       "explicit(ko)")
     }
 
     func testTelemetryDescriptionIsDistinctFromStoredValue() {
@@ -144,6 +154,23 @@ final class TranscriptionLanguagePolicyTests: XCTestCase {
         XCTAssertEqual(sut.polishPromptSelection(detectedLanguage: .english), .language(.english),
                        "polish must match the dictated language, not the keyboard")
         XCTAssertFalse(sut.insertsTranscriptionAsIs)
+    }
+
+    func testWhisperKoreanPinsKoWithoutClaimingKeyboardSupport() {
+        let sut = policy(.explicit(.korean), keyboard: .french, engine: .whisperKit)
+        XCTAssertEqual(sut.sttLanguageCode, "ko")
+        XCTAssertEqual(sut.polishPromptSelection(detectedLanguage: nil), .autoDetected,
+                       "Korean has no language-specific polish prompt during Phase 1")
+        XCTAssertTrue(sut.sttLanguageIsEffective)
+    }
+
+    func testKoreanPolicySurvivesAppGroupTransportEncoding() throws {
+        let sut = policy(.explicit(.korean), keyboard: .english, engine: .whisperKit)
+        let data = try JSONEncoder().encode(sut)
+        let decoded = try JSONDecoder().decode(TranscriptionLanguagePolicy.self, from: data)
+
+        XCTAssertEqual(decoded, sut)
+        XCTAssertEqual(decoded.sttLanguageCode, "ko")
     }
 
     // MARK: - Parakeet: STT stage unchanged, polish stage follows the order

@@ -284,6 +284,12 @@ final class TranscriptionHistoryStoreTests: XCTestCase {
         XCTAssertEqual(TranscriptionRecord.languageCode(for: explicit), "en",
                        "An explicit choice wins over the keyboard language.")
 
+        let korean = TranscriptionLanguagePolicy(
+            mode: .explicit(.korean), keyboardLanguage: .french,
+            engine: .whisperKit, modelIdentifier: "m"
+        )
+        XCTAssertEqual(TranscriptionRecord.languageCode(for: korean), "ko")
+
         let follow = TranscriptionLanguagePolicy(
             mode: .followKeyboard, keyboardLanguage: .german,
             engine: .whisperKit, modelIdentifier: "m"

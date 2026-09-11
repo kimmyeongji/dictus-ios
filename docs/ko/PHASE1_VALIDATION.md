@@ -14,10 +14,22 @@ WhisperKit의 한국어 강제 지정(`ko`)이 실제 iPhone에서 안정적으�
 
 ## 구현 범위
 
-1. STT 명시 언어 선택지에 한국어(`ko`)를 추가한다.
-2. WhisperKit 호출 직전 해석된 언어 코드가 `ko`인지 테스트한다.
+1. STT 명시 언어 선택지에 한국어(`ko`)를 추가한다. — 완료
+2. WhisperKit 호출 직전 해석된 언어 코드가 `ko`인지 테스트한다. — 완료
 3. 후처리/Polish 기능은 꺼서 순수 STT 결과를 측정한다.
 4. 모델별 지연 시간, peak memory, 결과 텍스트를 기록한다.
+
+한국어는 아직 키보드 언어가 아니다. STT 전용 `TranscriptionLanguage`에만 등록해 기존 라틴 키보드 레이아웃과 자동수정 사전에 영향을 주지 않는다.
+
+## 로컬 검증 상태
+
+- `TranscriptionLanguageModeTests`: 통과
+- `TranscriptionLanguagePolicyTests`: 통과
+- `PendingDictationTests`: 통과
+- `TranscriptionHistoryStoreTests`: 통과
+- Xcode 26.6 iOS Simulator 빌드: 앱 코드 이후 FluidAudio 0.12.4의 Swift 6 동시성 검사에서 중단
+
+현재 시뮬레이터 빌드 오류는 `StreamingAsrManager.swift`의 기존 `AsrManager` 전송 경고 3건이 Swift 6 오류로 승격된 것이다. 한국어 변경 파일에서는 컴파일 오류가 발견되지 않았다. 의존성 패치나 버전 고정은 Phase 1 STT 변경과 분리해 처리한다.
 
 한글 자판, 한국어 자동수정, 개인 사전, UI 전체 번역은 이 단계에 포함하지 않는다.
 

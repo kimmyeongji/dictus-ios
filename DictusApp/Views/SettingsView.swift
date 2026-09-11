@@ -28,7 +28,7 @@ struct SettingsView: View {
 
     /// Transcription (STT) language mode, decoupled from the keyboard language (#226).
     /// Stored as its raw App Group encoding: "follow" (default), "auto", or an
-    /// explicit code ("fr"/"en"/"es"/"de"). "follow" preserves the historical
+    /// explicit code ("fr"/"en"/"es"/"de"/"ko"). "follow" preserves the historical
     /// behavior where STT tracks the keyboard language.
     @AppStorage(SharedKeys.transcriptionLanguage, store: UserDefaults(suiteName: AppGroup.identifier))
     private var transcriptionLanguage = TranscriptionLanguageMode.followStoredValue
@@ -196,15 +196,13 @@ struct SettingsView: View {
                 // "Follow keyboard language" is the default and preserves the
                 // historical coupled behavior. "Auto-detect" lets Whisper pick
                 // the language itself, unlocking languages without a Dictus
-                // keyboard (Chinese, Italian, …). Explicit entries stay limited
-                // to the four tested languages by product decision — the long
-                // tail goes through Auto-detect only.
+                // keyboard (Korean during Phase 1, plus future languages).
                 Picker("Transcription language", selection: $transcriptionLanguage) {
                     Text("Follow keyboard language")
                         .tag(TranscriptionLanguageMode.followStoredValue)
                     Text("Auto-detect")
                         .tag(TranscriptionLanguageMode.autoStoredValue)
-                    ForEach(SupportedLanguage.allCases, id: \.rawValue) { lang in
+                    ForEach(TranscriptionLanguage.allCases, id: \.rawValue) { lang in
                         Text(lang.displayName).tag(lang.rawValue)
                     }
                 }
