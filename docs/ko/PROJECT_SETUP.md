@@ -50,12 +50,12 @@ WhisperKit 모델은 키보드 익스텐션이 아니라 메인 앱 프로세스
 - [x] Xcode/Swift 버전 확인
 - [x] 한국어 언어 토큰 전달 위치 확인
 - [x] App Group 및 Full Access 설정 위치 확인
-- [ ] GitHub 원격 포크 생성 및 첫 push
+- [x] GitHub 원격 포크 생성 및 첫 push
 - [ ] iOS Simulator 기준 전체 앱 빌드
 - [ ] 개발자 서명과 독립 Bundle ID/App Group 확정
 - [ ] 실제 iPhone 설치 및 원본 동작 확인
 
-원격 포크 생성은 로컬 GitHub CLI 재인증 후 완료한다.
+원격 포크는 `https://github.com/kimmyeongji/dictus-ios`에 생성되어 있다.
 
 ```bash
 gh auth login -h github.com
