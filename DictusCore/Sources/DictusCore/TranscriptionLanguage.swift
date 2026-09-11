@@ -2,43 +2,122 @@
 // Transcription (STT) language mode, decoupled from the keyboard language (issue #226).
 import Foundation
 
-/// Languages that can be pinned for speech-to-text independently from the keyboard.
+/// A Whisper transcription language that can be pinned independently from the keyboard.
+///
+/// WHY this is a data-backed value instead of an enum:
+/// WhisperKit exposes 100 distinct language codes. An enum made every language addition
+/// a new switch branch even though most languages share identical behavior. This value
+/// validates codes against one catalog while keeping the familiar `.english` conveniences
+/// used throughout the app and tests.
 ///
 /// WHY this is not `SupportedLanguage`:
-/// `SupportedLanguage` also promises a keyboard layout, key labels, autocorrect,
-/// and prediction data. Korean is being validated as a voice-only language first,
-/// so putting it there would claim keyboard features that do not exist yet.
-public enum TranscriptionLanguage: String, CaseIterable, Codable, Sendable {
-    case french = "fr"
-    case english = "en"
-    case spanish = "es"
-    case german = "de"
-    case korean = "ko"
+/// `SupportedLanguage` also promises a keyboard layout, key labels, autocorrect, and
+/// prediction data. A spoken language can be supported without claiming those keyboard
+/// features exist, so the STT catalog is intentionally a superset.
+public struct TranscriptionLanguage: RawRepresentable, CaseIterable, Codable, Hashable, Sendable, Identifiable {
+    public let rawValue: String
 
-    /// Autonym shown in the transcription language picker.
+    public var id: String { rawValue }
+
+    /// Exact language-code set accepted by WhisperKit 0.18.0.
+    ///
+    /// Keep the engine's legacy `jw` code for Javanese. Foundation uses `jv` when
+    /// producing a display name, but passing `jv` to Whisper would not select its
+    /// Javanese token.
+    private static let supportedCodes = [
+        "af", "am", "ar", "as", "az", "ba", "be", "bg", "bn", "bo",
+        "br", "bs", "ca", "cs", "cy", "da", "de", "el", "en", "es",
+        "et", "eu", "fa", "fi", "fo", "fr", "gl", "gu", "ha", "haw",
+        "he", "hi", "hr", "ht", "hu", "hy", "id", "is", "it", "ja",
+        "jw", "ka", "kk", "km", "kn", "ko", "la", "lb", "ln", "lo",
+        "lt", "lv", "mg", "mi", "mk", "ml", "mn", "mr", "ms", "mt",
+        "my", "ne", "nl", "nn", "no", "oc", "pa", "pl", "ps", "pt",
+        "ro", "ru", "sa", "sd", "si", "sk", "sl", "sn", "so", "sq",
+        "sr", "su", "sv", "sw", "ta", "te", "tg", "th", "tk", "tl",
+        "tr", "tt", "uk", "ur", "uz", "vi", "yi", "yo", "yue", "zh"
+    ]
+
+    private static let supportedCodeSet = Set(supportedCodes)
+
+    public static let allCases = supportedCodes.map(Self.init(validatedCode:))
+
+    // Convenience values retained for call sites and source compatibility.
+    public static let french = Self(validatedCode: "fr")
+    public static let english = Self(validatedCode: "en")
+    public static let spanish = Self(validatedCode: "es")
+    public static let german = Self(validatedCode: "de")
+    public static let korean = Self(validatedCode: "ko")
+
+    private init(validatedCode: String) {
+        self.rawValue = validatedCode
+    }
+
+    /// Fails closed for corrupted preferences and codes the pinned WhisperKit does
+    /// not know. `TranscriptionLanguageMode` then falls back to following the keyboard.
+    public init?(rawValue: String) {
+        guard Self.supportedCodeSet.contains(rawValue) else { return nil }
+        self.init(validatedCode: rawValue)
+    }
+
+    /// Autonym shown as the primary label in the transcription language picker.
     public var displayName: String {
-        switch self {
-        case .french: return "Fran\u{00E7}ais"
-        case .english: return "English"
-        case .spanish: return "Espa\u{00F1}ol"
-        case .german: return "Deutsch"
-        case .korean: return "한국어"
+        languageName(in: Locale(identifier: localeLanguageCode))
+    }
+
+    /// Language name in the user's current locale, used as a secondary label and
+    /// search term when it differs from the autonym.
+    public var localizedDisplayName: String {
+        languageName(in: .current)
+    }
+
+    /// Stable English name, so a user can still search in English when their device
+    /// is configured in another language.
+    public var englishDisplayName: String {
+        languageName(in: Locale(identifier: "en"))
+    }
+
+    private var localeLanguageCode: String {
+        rawValue == "jw" ? "jv" : rawValue
+    }
+
+    private func languageName(in locale: Locale) -> String {
+        let fallback = rawValue.uppercased()
+        guard let name = locale.localizedString(forLanguageCode: localeLanguageCode),
+              let first = name.first else {
+            return fallback
+        }
+        return String(first).uppercased(with: locale) + name.dropFirst()
+    }
+
+    /// The language-specific polish path, when one exists. Every other language
+    /// uses the language-agnostic same-language prompt so polish never translates it.
+    public var polishLanguage: SupportedLanguage? {
+        switch rawValue {
+        case "fr": return .french
+        case "en": return .english
+        case "es": return .spanish
+        case "de": return .german
+        default: return nil
         }
     }
 
-    /// The language-specific polish path, when one exists.
-    ///
-    /// Korean intentionally returns nil during Phase 1. The generic same-language
-    /// prompt is safer than routing Korean through a French, English, Spanish, or
-    /// German prompt, and pure STT validation keeps polish disabled altogether.
-    public var polishLanguage: SupportedLanguage? {
-        switch self {
-        case .french: return .french
-        case .english: return .english
-        case .spanish: return .spanish
-        case .german: return .german
-        case .korean: return nil
+    /// Preserve the enum's historical single-string Codable representation so
+    /// in-flight App Group payloads remain compatible across app upgrades.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        guard let language = Self(rawValue: rawValue) else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Unsupported transcription language code '\(rawValue)'"
+            )
         }
+        self = language
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
     }
 }
 

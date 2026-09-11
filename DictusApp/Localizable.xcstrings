@@ -1233,6 +1233,16 @@
         }
       }
     },
+    "Languages" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Langues"
+          }
+        }
+      }
+    },
     "Last transcription" : {
       "localizations" : {
         "fr" : {
@@ -2027,6 +2037,16 @@
     },
     "Reset learned words" : {},
     "Reset learned words?" : {},
+    "Recognition mode" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode de reconnaissance"
+          }
+        }
+      }
+    },
     "Restore previous purchases" : {
       "localizations" : {
         "fr" : {
@@ -2095,6 +2115,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Recherchez et exportez toutes vos transcriptions"
+          }
+        }
+      }
+    },
+    "Search languages" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rechercher une langue"
           }
         }
       }

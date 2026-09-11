@@ -197,13 +197,12 @@ struct SettingsView: View {
                 // historical coupled behavior. "Auto-detect" lets Whisper pick
                 // the language itself, unlocking languages without a Dictus
                 // keyboard (Korean during Phase 1, plus future languages).
-                Picker("Transcription language", selection: $transcriptionLanguage) {
-                    Text("Follow keyboard language")
-                        .tag(TranscriptionLanguageMode.followStoredValue)
-                    Text("Auto-detect")
-                        .tag(TranscriptionLanguageMode.autoStoredValue)
-                    ForEach(TranscriptionLanguage.allCases, id: \.rawValue) { lang in
-                        Text(lang.displayName).tag(lang.rawValue)
+                NavigationLink {
+                    TranscriptionLanguagePickerView(selection: $transcriptionLanguage)
+                } label: {
+                    LabeledContent("Transcription language") {
+                        Text(transcriptionLanguageDisplayName)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 if isParakeetActive {
@@ -537,6 +536,20 @@ struct SettingsView: View {
 
     // MARK: - Private
 
+    /// Compact value shown on the Settings row. The full searchable catalog lives
+    /// on its own screen so 100 Whisper languages never become a menu that is hard
+    /// to scan or navigate with VoiceOver.
+    private var transcriptionLanguageDisplayName: String {
+        switch TranscriptionLanguageMode(storedValue: transcriptionLanguage) {
+        case .followKeyboard:
+            return String(localized: "Follow keyboard language")
+        case .autoDetect:
+            return String(localized: "Auto-detect")
+        case .explicit(let language):
+            return language.displayName
+        }
+    }
+
     /// Whether the user is entitled to the history right now.
     ///
     /// Reads `proStatus.isProActive` so the row reacts: `FeatureGate` goes to the
@@ -689,6 +702,125 @@ struct SettingsView: View {
     private var diagnosticView: some View {
         DiagnosticDetailView(result: AppGroupDiagnostic.run())
             .navigationTitle("Diagnostic")
+    }
+}
+
+/// Searchable picker for Whisper's full spoken-language catalog.
+///
+/// This intentionally edits only the STT preference. Keyboard layouts, autocorrect,
+/// and prediction dictionaries remain controlled by `SupportedLanguage` below it in
+/// Settings; selecting Japanese here must not claim that Dictus ships a Japanese keyboard.
+private struct TranscriptionLanguagePickerView: View {
+    @Binding var selection: String
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText = ""
+
+    private var languages: [TranscriptionLanguage] {
+        TranscriptionLanguage.allCases.sorted {
+            $0.localizedDisplayName.localizedStandardCompare($1.localizedDisplayName) == .orderedAscending
+        }
+    }
+
+    private var filteredLanguages: [TranscriptionLanguage] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return languages }
+
+        return languages.filter { language in
+            language.rawValue.localizedCaseInsensitiveContains(query)
+                || language.displayName.localizedCaseInsensitiveContains(query)
+                || language.localizedDisplayName.localizedCaseInsensitiveContains(query)
+                || language.englishDisplayName.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    var body: some View {
+        List {
+            if searchText.isEmpty {
+                Section("Recognition mode") {
+                    selectionRow(
+                        title: String(localized: "Follow keyboard language"),
+                        value: TranscriptionLanguageMode.followStoredValue
+                    )
+                    selectionRow(
+                        title: String(localized: "Auto-detect"),
+                        value: TranscriptionLanguageMode.autoStoredValue
+                    )
+                }
+            }
+
+            if filteredLanguages.isEmpty {
+                ContentUnavailableView.search(text: searchText)
+            } else {
+                Section("Languages") {
+                    ForEach(filteredLanguages) { language in
+                        languageRow(language)
+                    }
+                }
+            }
+        }
+        .navigationTitle("Transcription language")
+        .navigationBarTitleDisplayMode(.inline)
+        .searchable(text: $searchText, prompt: "Search languages")
+    }
+
+    private func selectionRow(title: String, value: String) -> some View {
+        let isSelected = selection == value
+        return Button {
+            selection = value
+            dismiss()
+        } label: {
+            HStack {
+                Text(title)
+                    .foregroundStyle(.primary)
+                Spacer()
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(Color.dictusAccent)
+                        .accessibilityHidden(true)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private func languageRow(_ language: TranscriptionLanguage) -> some View {
+        let isSelected = selection == language.rawValue
+        let localizedName = language.localizedDisplayName
+        let showsLocalizedName = localizedName.compare(
+            language.displayName,
+            options: [.caseInsensitive, .diacriticInsensitive]
+        ) != .orderedSame
+
+        return Button {
+            selection = language.rawValue
+            dismiss()
+        } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(language.displayName)
+                        .foregroundStyle(.primary)
+                    HStack(spacing: 4) {
+                        if showsLocalizedName {
+                            Text(localizedName)
+                            Text(verbatim: "·")
+                        }
+                        Text(verbatim: language.rawValue.uppercased())
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(Color.dictusAccent)
+                        .accessibilityHidden(true)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

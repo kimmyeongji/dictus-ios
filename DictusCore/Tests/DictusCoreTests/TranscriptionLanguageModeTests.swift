@@ -17,6 +17,37 @@ final class TranscriptionLanguageModeTests: XCTestCase {
         XCTAssertNotEqual(SharedKeys.transcriptionLanguage, SharedKeys.language)
     }
 
+    // MARK: - Whisper language catalog
+
+    func testCatalogContainsEveryDistinctWhisperKitLanguageCode() {
+        let languages = TranscriptionLanguage.allCases
+        XCTAssertEqual(languages.count, 100)
+        XCTAssertEqual(Set(languages.map(\.rawValue)).count, 100)
+
+        for code in ["ar", "hi", "ja", "ko", "th", "uk", "vi", "yue", "zh"] {
+            XCTAssertNotNil(TranscriptionLanguage(rawValue: code), "Missing Whisper language code \(code)")
+        }
+    }
+
+    func testCatalogKeepsWhispersJavaneseTokenSpelling() {
+        XCTAssertNotNil(TranscriptionLanguage(rawValue: "jw"))
+        XCTAssertNil(TranscriptionLanguage(rawValue: "jv"), "WhisperKit expects its legacy jw token")
+    }
+
+    func testEveryCatalogLanguageHasSearchableDisplayNames() {
+        for language in TranscriptionLanguage.allCases {
+            XCTAssertFalse(language.displayName.isEmpty)
+            XCTAssertFalse(language.localizedDisplayName.isEmpty)
+            XCTAssertFalse(language.englishDisplayName.isEmpty)
+        }
+    }
+
+    func testLanguageCodableRepresentationRemainsASingleCode() throws {
+        let encoded = try JSONEncoder().encode(TranscriptionLanguage.korean)
+        XCTAssertEqual(try XCTUnwrap(String(data: encoded, encoding: .utf8)), "\"ko\"")
+        XCTAssertEqual(try JSONDecoder().decode(TranscriptionLanguage.self, from: encoded), .korean)
+    }
+
     // MARK: - Parsing (App Group stored value -> mode)
 
     func testMissingValueParsesAsFollow() {
@@ -33,19 +64,23 @@ final class TranscriptionLanguageModeTests: XCTestCase {
         XCTAssertEqual(TranscriptionLanguageMode(storedValue: "auto"), .autoDetect)
     }
 
-    func testExplicitCodesParseAsExplicit() {
+    func testExplicitCodesParseAsExplicit() throws {
         XCTAssertEqual(TranscriptionLanguageMode(storedValue: "fr"), .explicit(.french))
         XCTAssertEqual(TranscriptionLanguageMode(storedValue: "en"), .explicit(.english))
         XCTAssertEqual(TranscriptionLanguageMode(storedValue: "es"), .explicit(.spanish))
         XCTAssertEqual(TranscriptionLanguageMode(storedValue: "de"), .explicit(.german))
         XCTAssertEqual(TranscriptionLanguageMode(storedValue: "ko"), .explicit(.korean))
+        XCTAssertEqual(
+            TranscriptionLanguageMode(storedValue: "zh"),
+            .explicit(try XCTUnwrap(TranscriptionLanguage(rawValue: "zh")))
+        )
     }
 
     func testUnknownValueDegradesToFollow() {
         // Unknown codes (e.g. a future value read by an older build, or a
         // corrupted default) must never break transcription — degrade to the
         // safe historical behavior.
-        XCTAssertEqual(TranscriptionLanguageMode(storedValue: "zh"), .followKeyboard)
+        XCTAssertEqual(TranscriptionLanguageMode(storedValue: "zz"), .followKeyboard)
         XCTAssertEqual(TranscriptionLanguageMode(storedValue: ""), .followKeyboard)
         XCTAssertEqual(TranscriptionLanguageMode(storedValue: "garbage"), .followKeyboard)
     }
@@ -53,11 +88,8 @@ final class TranscriptionLanguageModeTests: XCTestCase {
     // MARK: - Encoding round-trip
 
     func testStoredValueRoundTrip() {
-        let modes: [TranscriptionLanguageMode] = [
-            .followKeyboard, .autoDetect,
-            .explicit(.french), .explicit(.english), .explicit(.spanish), .explicit(.german),
-            .explicit(.korean)
-        ]
+        let modes: [TranscriptionLanguageMode] = [.followKeyboard, .autoDetect]
+            + TranscriptionLanguage.allCases.map(TranscriptionLanguageMode.explicit)
         for mode in modes {
             XCTAssertEqual(TranscriptionLanguageMode(storedValue: mode.storedValue), mode)
         }
@@ -88,6 +120,13 @@ final class TranscriptionLanguageModeTests: XCTestCase {
         let mode = TranscriptionLanguageMode.explicit(.korean)
         XCTAssertEqual(mode.resolvedLanguageCode(keyboardLanguageCode: "fr"), "ko")
         XCTAssertEqual(mode.storedValue, "ko")
+    }
+
+    func testExtendedLanguageResolvesToWhisperLanguageCode() throws {
+        let japanese = try XCTUnwrap(TranscriptionLanguage(rawValue: "ja"))
+        let mode = TranscriptionLanguageMode.explicit(japanese)
+        XCTAssertEqual(mode.resolvedLanguageCode(keyboardLanguageCode: "fr"), "ja")
+        XCTAssertEqual(mode.storedValue, "ja")
     }
 
     // MARK: - Telemetry description (#332)
@@ -171,6 +210,14 @@ final class TranscriptionLanguagePolicyTests: XCTestCase {
 
         XCTAssertEqual(decoded, sut)
         XCTAssertEqual(decoded.sttLanguageCode, "ko")
+    }
+
+    func testExtendedLanguageUsesSameLanguagePolishFallback() throws {
+        let japanese = try XCTUnwrap(TranscriptionLanguage(rawValue: "ja"))
+        let sut = policy(.explicit(japanese), keyboard: .english, engine: .whisperKit)
+
+        XCTAssertEqual(sut.sttLanguageCode, "ja")
+        XCTAssertEqual(sut.polishPromptSelection(detectedLanguage: nil), .autoDetected)
     }
 
     // MARK: - Parakeet: STT stage unchanged, polish stage follows the order
